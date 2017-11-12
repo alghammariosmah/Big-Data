@@ -1,4 +1,3 @@
-package fh;
 
 import java.awt.Color;
 import java.awt.GridLayout;
@@ -13,8 +12,11 @@ import java.nio.file.Files;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
@@ -46,17 +48,19 @@ import org.jfree.data.xy.XYDataset;
 import org.jfree.ui.ApplicationFrame;
 import org.jfree.ui.RectangleInsets;
 import org.jfree.ui.RefineryUtilities;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 
-
-public class fh extends ApplicationFrame  {
+public class normal extends ApplicationFrame  {
 
     private static final long serialVersionUID = 1L;
     private static final int NUMQUARTERS = 20;
     
     private static String title = new String ();
+    private static double [] webdata = new double [30]; // save for 16 days
 
     
     private static TimeSeries s1 = new TimeSeries("Real Load");
@@ -77,7 +81,7 @@ public class fh extends ApplicationFrame  {
      * @param title  the frame title.
      * @throws Exception 
      */
-    public fh(String title) throws Exception {
+    public normal(String title) throws Exception {
         super(title);
         setLayout(new GridLayout(3, 1));
         ChartPanel chartPanel = (ChartPanel) createDemoPanel();
@@ -156,37 +160,36 @@ public class fh extends ApplicationFrame  {
     
     private static XYDataset createDataset() throws ParseException {
     	
-        SimpleDateFormat standardDateFormat = new SimpleDateFormat("HH:mm:ss");
+        SimpleDateFormat standardDateFormat = new SimpleDateFormat("MM-dd");
 
         String date3;
         Date myDate;
-        long sum;
         
-        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss");
-        timeFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-    	
-        String time1="0:00:00";
         
-        double [] output2 = new double [NUMQUARTERS];
-        for (int i = 0; i < NUMQUARTERS; i++) {
-        	output2[i] = Double.valueOf(i);
+        
+        SimpleDateFormat dayFormat = new SimpleDateFormat("MM-dd");
+        
+        
+        for (int i = 0; i < webdata.length; i++) {
+        	//output2[i] = Double.valueOf(i);
         	
-            
-        	
-            String time2="0:" + 15*i + ":00";
-    		Date date1 = timeFormat.parse(time1);
-    		Date date2 = timeFormat.parse(time2);
-    		sum = date1.getTime() + date2.getTime();
-    		date3 = timeFormat.format(new Date(sum));
-    		myDate = standardDateFormat.parse(date3);
-    		s1.addOrUpdate(new Minute(myDate), output2[i]);
-    		//s2.addOrUpdate(new Minute(myDate), i+3);
+        	DateTime yesterday = new DateTime().minusDays(i); // getting the last days
+    		String days = yesterday.toString("MM-dd");
+    		
+  
+    		//RegularTimePeriod day = new Day(days);
+    		//System.out.println(date3);
+    		myDate = standardDateFormat.parse(days);
+    		//System.out.println(myDate);
+    		//System.out.println(new Minute(myDate));
+    		s1.addOrUpdate(new Day(myDate), webdata[i]);
+//    		s2.addOrUpdate(new Minute(myDate), i+3);
     			
         }
             	
         TimeSeriesCollection dataset = new TimeSeriesCollection();
         dataset.addSeries(s1);
-        //dataset.addSeries(s2);
+//        dataset.addSeries(s2);
                         
         return dataset;
     }
@@ -295,18 +298,19 @@ public class fh extends ApplicationFrame  {
     public static double[] RestAPIValues() throws Exception {
 
 		int period = 0;
-		double [] output = new double [16]; // save for 16 days
-		
 	    // build a URL
-	    String s = "http://api.apixu.com/v1/history.json?key=83df9f91cfd44eaebfb81207172010&q=Linz&dt=2017-10-";
+	    String s = "http://api.apixu.com/v1/history.json?key=83df9f91cfd44eaebfb81207172010&q=Linz&dt=";
 
 	    String temp1 = "";
-	    for (int d = 15; d < 31 ; d++ ){ // from day 15 to day 30 = 15 days
-	    	temp1 = "";
-	    	String strI = Integer.toString(d);
-	    	temp1 = s+ d;
-	    	URL url = new URL(temp1);
-	    		 
+	    
+    	
+    	for (int d = 1; d < 31 ; d++ ){ // change 15 to 31
+    		temp1 = "";
+    		DateTime yesterday = new DateTime().minusDays(d); // getting the last days
+    		String days = yesterday.toString("yyyy-MM-dd");
+    		temp1 = s+ days;
+    		URL url = new URL(temp1);
+   		 
 		    // read from the URL
 		    Scanner scan = new Scanner(url.openStream());
 		    String str = new String();
@@ -327,12 +331,11 @@ public class fh extends ApplicationFrame  {
 		    
 		    //System.out.println(ou1);
 		    
-		    output[period] = ou1;
+		    webdata[period] = ou1;
 		    period +=1;
-		    
-	    }	
+    	}
 	    
-	    return output;	
+	    return webdata;	
 	}
 
        
@@ -343,19 +346,27 @@ public class fh extends ApplicationFrame  {
      * @throws Exception 
      */
     public static void main(String[] args) throws Exception {
-    	try {
-        	//RestAPIValues();
-        	System.out.println(Arrays.toString(RestAPIValues()));
-        }catch (IOException e) {
-            System.err.println("Caught IOException: " + e.getMessage());
-        }   
+    	
+
+    	
+
+    	RestAPIValues();
+//    	try {
+//        	//RestAPIValues();
+//        	System.out.println( Arrays.toString(RestAPIValues()));
+//        	System.out.println(RestAPIValues().length);
+//        	
+//        }catch (IOException e) {
+//            System.err.println("Caught IOException: " + e.getMessage());
+//        }   
+    	
 		    	    	
 		title = "Time Series Lab";
-    	fh demo = new fh("Time Series Lab v0.1");
+    	normal demo = new normal("Time Series Lab v0.1");
         demo.pack();
-//                
-//        RefineryUtilities.centerFrameOnScreen(demo);
-//        demo.setVisible(true);
+                
+        RefineryUtilities.centerFrameOnScreen(demo);
+        demo.setVisible(true);
 
     }
     
