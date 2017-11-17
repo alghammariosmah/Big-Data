@@ -1,3 +1,4 @@
+package normal;
 
 import java.awt.Color;
 import java.awt.GridLayout;
@@ -10,6 +11,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.DateFormat;
+import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
@@ -60,7 +62,10 @@ public class normal extends ApplicationFrame  {
     private static final int NUMQUARTERS = 20;
     
     private static String title = new String ();
-    private static double [] webdata = new double [30]; // save for 16 days
+    private static final int period = 30;
+    private static double [] webdata = new double [period]; // save for 16 days
+    private static double [] movingAverage = new double[period];
+    private static int [] dateInt = new int[period*3];
 
     
     private static TimeSeries s1 = new TimeSeries("Real Load");
@@ -151,7 +156,7 @@ public class normal extends ApplicationFrame  {
         }
 
         DateAxis axis = (DateAxis) plot.getDomainAxis();
-        axis.setDateFormatOverride(new SimpleDateFormat("HH:mm"));
+        axis.setDateFormatOverride(new SimpleDateFormat("dd-MM"));
 
         return chart;
 
@@ -160,65 +165,36 @@ public class normal extends ApplicationFrame  {
     
     private static XYDataset createDataset() throws ParseException {
     	
-        SimpleDateFormat standardDateFormat = new SimpleDateFormat("MM-dd");
-
-        String date3;
+        SimpleDateFormat standardDateFormat = new SimpleDateFormat("dd-MM");
         Date myDate;
         
-        
-        
-        SimpleDateFormat dayFormat = new SimpleDateFormat("MM-dd");
-        
-        
+        reverse(webdata);
         for (int i = 0; i < webdata.length; i++) {
         	//output2[i] = Double.valueOf(i);
         	
-        	DateTime yesterday = new DateTime().minusDays(i); // getting the last days
-    		String days = yesterday.toString("MM-dd");
+        	DateTime yesterday = new DateTime().minusDays(i+1); // getting the last days
+    		String days = yesterday.toString("dd-MM"); // it has to be int days and months
     		
-  
-    		//RegularTimePeriod day = new Day(days);
-    		//System.out.println(date3);
     		myDate = standardDateFormat.parse(days);
-    		//System.out.println(myDate);
-    		//System.out.println(new Minute(myDate));
-    		s1.addOrUpdate(new Day(myDate), webdata[i]);
-//    		s2.addOrUpdate(new Minute(myDate), i+3);
-    			
-        }
-            	
+
+    		s1.addOrUpdate(new Day(myDate), webdata[i]);	
+        }   	
         TimeSeriesCollection dataset = new TimeSeriesCollection();
         dataset.addSeries(s1);
-//        dataset.addSeries(s2);
-                        
         return dataset;
     }
     
     private static XYDataset createDataset2() throws ParseException {
     	
-        SimpleDateFormat standardDateFormat = new SimpleDateFormat("HH:mm:ss");
-
-        String date3;
+        SimpleDateFormat standardDateFormat = new SimpleDateFormat("MM-dd");
         Date myDate;
-        long sum;
-        
-        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss");
-        timeFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-    	
-        double [] output2 = new double [NUMQUARTERS];
-        for (int i = 0; i < NUMQUARTERS; i++) {
-        	output2[i] = Double.valueOf(i);
-            
-        	String time1="0:00:00";
-            String time2="0:" + 15*i + ":00";
-    		Date date1 = timeFormat.parse(time1);
-    		Date date2 = timeFormat.parse(time2);
-    		sum = date1.getTime() + date2.getTime();
-    		date3 = timeFormat.format(new Date(sum));
-    		myDate = standardDateFormat.parse(date3);
-    		s2.addOrUpdate(new Minute(myDate), output2[i]);
-    		//s1.addOrUpdate(new Minute(myDate), i+5);
+        reverse(movingAverage);
+        for (int i = 0; i < movingAverage.length; i++) {
         	
+        	DateTime yesterday = new DateTime().minusDays(i); // getting the last days
+    		String days = yesterday.toString("MM-dd");
+    		myDate = standardDateFormat.parse(days);
+    		s2.addOrUpdate(new Day(myDate), movingAverage[i]);	
         }
     	
         TimeSeriesCollection dataset = new TimeSeriesCollection();
@@ -296,14 +272,12 @@ public class normal extends ApplicationFrame  {
     }
     
     public static double[] RestAPIValues() throws Exception {
-
-		int period = 0;
+		int index = 0;
 	    // build a URL
 	    String s = "http://api.apixu.com/v1/history.json?key=83df9f91cfd44eaebfb81207172010&q=Linz&dt=";
 
 	    String temp1 = "";
 	    
-    	
     	for (int d = 1; d < 31 ; d++ ){ // change 15 to 31
     		temp1 = "";
     		DateTime yesterday = new DateTime().minusDays(d); // getting the last days
@@ -318,8 +292,6 @@ public class normal extends ApplicationFrame  {
 		        str += scan.nextLine();
 		    scan.close();
 		    
-
-		    
 		    JSONObject obj = new JSONObject(str);
 		    JSONObject location  = obj.getJSONObject("location");
 		    
@@ -331,13 +303,50 @@ public class normal extends ApplicationFrame  {
 		    
 		    //System.out.println(ou1);
 		    
-		    webdata[period] = ou1;
-		    period +=1;
+		    webdata[index] = ou1;
+		    index +=1;
     	}
 	    
 	    return webdata;	
 	}
 
+    public static void reverse(double[] array) {
+        if (array == null) {
+            return;
+        }
+        int i = 0;
+        int j = array.length - 1;
+        double tmp;
+        while (j > i) {
+            tmp = array[j];
+            array[j] = array[i];
+            array[i] = tmp;
+            j--;
+            i++;
+        }
+    }
+    public static double[] simpleMovingAverage(int prd){
+    	
+    	double [] simplemovingAverage = new double[period];
+    	double sum = 0.0;
+    	for(int i = 0; i < prd; i++){
+    		sum += webdata[i];
+    	}  
+    	simplemovingAverage[prd-1] = sum/prd;
+	    int j = prd;   
+	    for(int i = prd; i < period; i++){
+	    	
+	         sum = sum+webdata[i]-webdata[i-prd];
+	         simplemovingAverage[j++] = sum/prd;
+	    }
+    	 	
+//    	for (int i=0; i<movingAverage.length; i++)
+//        {      
+//	    	DecimalFormat df = new DecimalFormat("0.00");  
+//    		System.out.println(df.format(movingAverage[i]));
+//        }
+		return simplemovingAverage;
+    }
        
     /**
      * Starting point for the demonstration application.
@@ -346,19 +355,9 @@ public class normal extends ApplicationFrame  {
      * @throws Exception 
      */
     public static void main(String[] args) throws Exception {
-    	
-
-    	
 
     	RestAPIValues();
-//    	try {
-//        	//RestAPIValues();
-//        	System.out.println( Arrays.toString(RestAPIValues()));
-//        	System.out.println(RestAPIValues().length);
-//        	
-//        }catch (IOException e) {
-//            System.err.println("Caught IOException: " + e.getMessage());
-//        }   
+    	movingAverage =  simpleMovingAverage(5);
     	
 		    	    	
 		title = "Time Series Lab";
